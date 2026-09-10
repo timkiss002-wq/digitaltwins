@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Điều Khiển Phân Luồng Giao Thông - NEU</title>
+    <!-- Chart.js cho Biểu đồ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-color: #0d1322;
+            --card-bg: #151d30;
+            --card-border: #1e2942;
+            --text-primary: #ffffff;
+            --text-secondary: #8a99ad;
+            --accent-blue: #00d2ff;
+            --accent-green: #00e676;
+            --accent-orange: #ff9100;
+            --accent-red: #ff5252;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            padding: 20px;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- HEADER --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-blue);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+        }
+
+        .brand-title h1 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .brand-title p {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .btn-refresh {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .status-tag {
+            background: rgba(0, 230, 118, 0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(0, 230, 118, 0.3);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+        }
+
+        /* --- THANH CHUYỂN TAB NHÀ XE --- */
+        .garage-selector {
+            display: flex;
+            gap: 10px;
+            background: var(--card-bg);
+            padding: 6px;
+            border-radius: 10px;
+            border: 1px solid var(--card-border);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            background: var(--accent-blue);
+            color: #0d1322;
+        }
+
+        /* --- DASHBOARD GRID --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        /* METRICS ROW */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .metric-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .metric-sub {
+            font-size: 12px;
+            color: var(--accent-green);
+            margin-top: 5px;
+        }
+
+        /* ALERT BOX */
+        .alert-box {
+            background: rgba(255, 145, 0, 0.05);
+            border: 1px solid rgba(255, 145, 0, 0.2);
+            border-left: 4px solid var(--accent-orange);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .alert-title {
+            color: var(--accent-blue);
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .alert-desc {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #ddd;
+        }
+
+        .alert-recommend {
+            margin-top: 15px;
+            background: rgba(0, 210, 255, 0.05);
+            border: 1px solid rgba(0, 210, 255, 0.3);
+            padding: 10px 15px;
+            border-radius: 6px;
+            color: var(--accent-blue);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* GATE CONTROLS */
+        .card-header-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent-orange);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .gate-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .gate-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .gate-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .gate-tag {
+            font-size: 10px;
+            background: #1e2942;
+            color: var(--accent-blue);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #2a3859;
+            transition: .3s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--accent-green);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(22px);
+        }
+
+        /* SỨC CHỨA TỔNG QUAN (4 BÃI) */
+        .capacity-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .capacity-card {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .capacity-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .capacity-sub {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .gauge-container {
+            width: 90px;
+            height: 90px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* CHART CONTAINER */
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+
+        /* SCROLLABLE EXTRA SECTION */
+        .extra-section {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="brand">
+                <div class="brand-icon"><i data-lucide="activity"></i></div>
+                <div class="brand-title">
+                    <h1>Hệ Thống Điều Khiển Phân Luồng Giao Thông</h1>
+                    <p>TRUNG TÂM GIÁM SÁT BÃI XE TOÀN TRƯỜNG NEU</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <button class="btn-refresh"><i data-lucide="rotate-cw" style="width:14px;"></i> Cập nhật</button>
+                <div class="status-tag">
+                    <div class="status-dot"></div>
+                    TERMINAL ONLINE
+                </div>
+            </div>
+        </header>
+
+        <!-- ĐIỀU HƯỚNG NHÀ XE (TỪ 1 ĐẾN 4) -->
+        <div class="garage-selector">
+            <button class="tab-btn active" onclick="switchGarage(1)">
+                <i data-lucide="warehouse" style="width:16px;"></i> NHÀ XE 1 (KHU CỔNG CHÍNH)
+            </button>
+            <button class="tab-btn" onclick="switchGarage(2)">
+                <i data-lucide="warehouse" style="width:16px;"></i> NHÀ XE 2 (KHU GIẢNG ĐƯỜNG)
+            </button>
+            <button class="tab-btn" onclick="switchGarage(3)">
+                <i data-lucide="warehouse" style="width:16px;"></i> NHÀ XE 3 (KHU KÝ TÚC XÁ)
+            </button>
+            <button class="tab-btn" onclick="switchGarage(4)">
+                <i data-lucide="warehouse" style="width:16px;"></i> NHÀ XE 4 (KHU THỂ THAO)
+            </button>
+        </div>
+
+        <!-- DASHBOARD MAIN CONTENT -->
+        <div class="dashboard-grid">
+            <!-- CỘT TRÁI (THÔNG SỐ VÀ ĐIỀU HƯỚNG RIÊNG CỦA NHÀ XE) -->
+            <div>
+                <!-- 3 CHỈ SỐ THEO TỪNG NHÀ XE -->
+                <div class="metrics-row">
+                    <div class="metric-card">
+                        <div class="metric-title">Xe Qua Cổng / 15 Phút</div>
+                        <div class="metric-value" id="val-flow">47 xe</div>
+                        <div class="metric-sub" id="val-flow-trend">↑ Tăng 12% so với chu kỳ trước</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Hàng Chờ Hiện Tại</div>
+                        <div class="metric-value" id="val-queue">12 xe</div>
+                        <div class="metric-sub" style="color:var(--text-secondary)" id="val-queue-len">Chiều dài đuôi
+                            hàng ~60m</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Thời Gian Qua Cổng TB</div>
+                        <div class="metric-value" id="val-time">45s</div>
+                        <div class="metric-sub" style="color:var(--text-secondary)">Thời gian quét trung bình</div>
+                    </div>
+                </div>
+
+                <!-- CẢNH BÁO ĐIỀU PHỐI BẮT BUỘC -->
+                <div class="alert-box">
+                    <div class="alert-title">
+                        <i data-lucide="navigation" style="width: 16px;"></i> Hướng Dẫn Điều Phối Bắt Buộc
+                    </div>
+                    <div class="alert-desc" id="alert-text">
+                        <b>ĐIỀU HƯỚNG:</b> Yêu cầu bảo vệ điều phối sinh viên di chuyển sang <span
+                            style="color:var(--accent-green)">Bãi D (Còn trống 77%)</span>. Thời gian di chuyển ước tính
+                        3 phút. Tránh Bãi A do đã quá tải.
+                    </div>
+                    <div class="alert-recommend" id="alert-recommend">
+                        KHUYẾN DÙNG: BÃI D (TRỐNG 77%)
+                    </div>
+                </div>
+
+                <!-- SỨC CHỨA TỔNG QUAN (ĐỒNG BỘ 4 BÃI XE TOÀN TRƯỜNG) -->
+                <div class="card">
+                    <div class="card-header-title" style="color:var(--accent-blue)">
+                        <i data-lucide="layout-grid" style="width:16px;"></i> Sức Chứa Tổng Quan (Toàn Hệ Thống 4 Nhà
+                        Xe)
+                    </div>
+                    <div class="capacity-grid">
+                        <div class="capacity-card">
+                            <div class="capacity-name">BÃI A</div>
+                            <div class="capacity-sub">(TRUNG TÂM)</div>
+                            <div class="gauge-container"><canvas id="gaugeA"></canvas></div>
+                        </div>
+                        <div class="capacity-card">
+                            <div class="capacity-name">BÃI B</div>
+                            <div class="capacity-sub">(GIẢNG ĐƯỜNG)</div>
+                            <div class="gauge-container"><canvas id="gaugeB"></canvas></div>
+                        </div>
+                        <div class="capacity-card">
+                            <div class="capacity-name">BÃI C</div>
+                            <div class="capacity-sub">(KÝ TÚC XÁ)</div>
+                            <div class="gauge-container"><canvas id="gaugeC"></canvas></div>
+                        </div>
+                        <div class="capacity-card">
+                            <div class="capacity-name">BÃI D</div>
+                            <div class="capacity-sub">(THỂ THAO)</div>
+                            <div class="gauge-container"><canvas id="gaugeD"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI (ĐIỀU KHUYỂN CỔNG & BIỂU ĐỒ LƯU LƯỢNG) -->
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- CÔNG TÁC ĐIỀU KHUYỂN CỔNG (RIÊNG CỦA NHÀ XE DỰA TRÊN TAB TRÊN) -->
+                <div class="card">
+                    <div class="card-header-title">
+                        <i data-lucide="sliders" style="width:16px;"></i> Công Tác Điều Khiển Cổng
+                    </div>
+                    <div class="gate-list">
+                        <div class="gate-item">
+                            <div class="gate-info">CỔNG 1 <span class="gate-tag">VÀO</span></div>
+                            <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="gate-item">
+                            <div class="gate-info">CỔNG 2 <span class="gate-tag">VÀO</span></div>
+                            <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="gate-item">
+                            <div class="gate-info">CỔNG 3 <span class="gate-tag">ĐỔI LUỒNG RA/VÀO</span></div>
+                            <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="gate-item">
+                            <div class="gate-info">CỔNG 4 <span class="gate-tag">ĐỔI LUỒNG RA/VÀO</span></div>
+                            <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- BIỂU ĐỒ LƯU LƯỢNG GIAO THÔNG -->
+        <div class="card">
+            <div class="card-header-title" style="color:#fff; justify-content: space-between;">
+                <span>LƯU LƯỢNG GIAO THÔNG (2H QUA)</span>
+                <span style="font-size: 10px; color: var(--text-secondary);">ĐƠN VỊ: XE / GIÂY</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="trafficChart"></canvas>
+            </div>
+        </div>
+
+        <!-- MỤC KÉO XUỐNG XEM THÊM (SCROLLABLE DEMO) -->
+        <div class="card extra-section">
+            <div class="card-header-title" style="color: var(--accent-green);">
+                <i data-lucide="file-text" style="width:16px;"></i> Lịch Sử Nhật Ký Điều Phối Hệ Thống
+            </div>
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                Dữ liệu được cập nhật tự động từ các camera AI cảm biến tại cổng. Báo cáo chi tiết theo từng ca trực
+                được lưu trữ liên tục.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Khởi tạo Lucide Icons
+        lucide.createIcons();
+
+        // Dữ liệu mô phỏng riêng cho từng nhà xe (1 đến 4)
+        const garageData = {
+            1: {
+                flow: "47 xe", trend: "↑ Tăng 12% so với chu kỳ trước",
+                queue: "12 xe", queueLen: "Chiều dài đuôi hàng ~60m",
+                time: "45s",
+                alert: "<b>ĐIỀU HƯỚNG:</b> Yêu cầu bảo vệ điều phối sinh viên di chuyển sang <span style='color:var(--accent-green)'>Bãi D (Còn trống 77%)</span>. Thời gian di chuyển ước tính 3 phút. Tránh Bãi A do đã quá tải.",
+                recommend: "KHUYẾN DÙNG: BÃI D (TRỐNG 77%)",
+                chartData: [15, 18, 22, 30, 38, 48, 55, 50, 42]
+            },
+            2: {
+                flow: "28 xe", trend: "↓ Giảm 5% so với chu kỳ trước",
+                queue: "4 xe", queueLen: "Chiều dài đuôi hàng ~15m",
+                time: "25s",
+                alert: "<b>THÔNG BÁO:</b> Lưu lượng giao thông tại Bãi B ổn định. Có thể tiếp nhận thêm xe từ Cổng 1.",
+                recommend: "KHUYẾN DÙNG: BÃI B (TRỐNG 55%)",
+                chartData: [10, 15, 20, 25, 28, 30, 28, 25, 20]
+            },
+            3: {
+                flow: "62 xe", trend: "↑ Tăng 25% so với chu kỳ trước",
+                queue: "18 xe", queueLen: "Chiều dài đuôi hàng ~90m",
+                time: "60s",
+                alert: "<b>CẢNH BÁO UÙN TẮC:</b> Cổng Ký Túc Xá đang tăng nhanh. Đề xuất mở thêm Cổng 4 để xả luồng.",
+                recommend: "KHUYẾN DÙNG: BÃI C (TRỐNG 22%)",
+                chartData: [20, 25, 35, 45, 60, 65, 62, 58, 50]
+            },
+            4: {
+                flow: "14 xe", trend: "→ Phân luồng ổn định",
+                queue: "2 xe", queueLen: "Chiều dài đuôi hàng ~5m",
+                time: "18s",
+                alert: "<b>TRẠNG THÁI THÔNG THOÁNG:</b> Bãi D hiện tại đáp ứng tốt lưu lượng xe di chuyển từ các khu vực khác.",
+                recommend: "KHUYẾN DÙNG: BÃI D (TRỐNG 77%)",
+                chartData: [5, 8, 12, 10, 14, 15, 14, 12, 10]
+            }
+        };
+
+        // Hàm chuyển tab Nhà xe
+        function switchGarage(id) {
+            // Active Tab
+            document.querySelectorAll('.tab-btn').forEach((btn, index) => {
+                if (index + 1 === id) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            // Cập nhật thông số
+            const data = garageData[id];
+            document.getElementById('val-flow').innerText = data.flow;
+            document.getElementById('val-flow-trend').innerText = data.trend;
+            document.getElementById('val-queue').innerText = data.queue;
+            document.getElementById('val-queue-len').innerText = data.queueLen;
+            document.getElementById('val-time').innerText = data.time;
+            document.getElementById('alert-text').innerHTML = data.alert;
+            document.getElementById('alert-recommend').innerText = data.recommend;
+
+            // Giữ biểu đồ do dữ liệu trực tiếp từ API điều khiển.
+            refreshTrafficChart();
+        }
+
+        // --- KHỞI TẠO BIỂU ĐỒ LƯU LƯỢNG (CHART.JS) ---
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        const trafficChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'LƯU LƯỢNG THỰC TẾ',
+                    data: garageData[1].chartData,
+                    borderColor: '#00d2ff',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: '#00d2ff',
+                    cubicInterpolationMode: 'default'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {legend: {display: false}},
+                scales: {
+                    x: {grid: {display: false}, ticks: {color: '#8a99ad', font: {size: 10}}},
+                    y: {grid: {color: '#1e2942'}, ticks: {color: '#8a99ad', font: {size: 10}}}
+                }
+            }
+        });
+
+        const chartRunStartedAt = Date.now();
+        const chartWindowSize = 60;
+        // const chartRunDurationMs = 20000;
+
+        function updateTrafficWindow(labels, values) {
+            const windowStart = Math.max(0, labels.length - chartWindowSize);
+            trafficChart.data.labels = labels.slice(windowStart);
+            trafficChart.data.datasets[0].data = values.slice(windowStart);
+            trafficChart.update();
+        }
+
+        async function refreshTrafficChart() {
+            // if (Date.now() - chartRunStartedAt >= chartRunDurationMs) return;
+
+            try {
+                const response = await fetch('/api/traffic-data', {cache: 'no-store'});
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const liveData = await response.json();
+                // if (Date.now() - chartRunStartedAt >= chartRunDurationMs) return;
+                if (liveData.labels.length) {
+                    updateTrafficWindow(liveData.labels, liveData.values);
+                }
+            } catch (error) {
+                console.warn('Không thể cập nhật dữ liệu lưu lượng:', error);
+            }
+        }
+
+        refreshTrafficChart();
+        const chartRefreshTimer = setInterval(() => {
+            refreshTrafficChart();
+        }, 2500);
+
+        // --- CÁC BIỂU ĐỒ ĐỒNG HỒ SỨC CHỨA (GAUGE CHARTS) ---
+        function createGauge(id, percent, color) {
+            new Chart(document.getElementById(id).getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [percent, 100 - percent],
+                        backgroundColor: [color, '#1e2942'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: '80%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {tooltip: {enabled: false}, legend: {display: false}}
+                },
+                plugins: [{
+                    id: 'text',
+                    beforeDraw: function (chart) {
+                        var width = chart.width, height = chart.height, ctx = chart.ctx;
+                        ctx.restore();
+                        ctx.font = "bold 16px sans-serif";
+                        ctx.textBaseline = "middle";
+                        ctx.fillStyle = color;
+                        var text = percent + "%",
+                            textX = Math.round((width - ctx.measureText(text).width) / 2),
+                            textY = height / 2;
+                        ctx.fillText(text, textX, textY);
+                        ctx.save();
+                    }
+                }]
+            });
+        }
+
+        // Tạo 4 biểu đồ sức chứa đồng bộ cho 4 Bãi (A, B, C, D)
+        createGauge('gaugeA', 92, '#ff5252'); // Đỏ (Bãi A)
+        createGauge('gaugeB', 45, '#00e676'); // Xanh lá (Bãi B)
+        createGauge('gaugeC', 78, '#ff9100'); // Cam (Bãi C)
+        createGauge('gaugeD', 23, '#00e676'); // Xanh lá (Bãi D)
+    </script>
+</body>
+
+</html>

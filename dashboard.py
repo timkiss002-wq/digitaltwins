@@ -1,84 +1,125 @@
-import streamlit as st
-import sqlite3
-import pandas as pd
-from streamlit_autorefresh import st_autorefresh
+import os
+import threading
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
 
-# Tự động làm mới giao diện mỗi 1000ms (1 giây)
-st_autorefresh(interval=1000, key="datarefresh")
+import cv2
+from flask import Flask, jsonify, render_template
+from ultralytics import YOLO
 
-st.set_page_config(page_title="Digital Twin Traffic Dashboard", layout="wide")
+from database import get_connection, init_db, log_metric, log_vehicle, reset_metrics
 
-st.title("🚗 Trường Học Digital Twin - Giám Sát Phân Luồng Xe")
+BASE_DIR = Path(__file__).resolve().parent
+VIDEO_PATH = Path(os.getenv("TRAFFIC_VIDEO", BASE_DIR / "Vehicle Dataset Sample 2 [JqhdBCCUVyQ].mp4"))
+MODEL_PATH = Path(os.getenv("YOLO_MODEL", BASE_DIR / "yolov8n.pt"))
+SHOW_VIDEO = os.getenv("SHOW_VIDEO", "0") == "1"
+VEHICLE_CLASSES = {2: "Car", 3: "Motorcycle", 5: "Bus", 7: "Truck"}
+COUNTING_LINE_Y = 400
+COUNTING_LINE_MARGIN = 15
 
-DB_NAME = "traffic_monitor.db"
+app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
 
-def load_data():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Tự động tạo bảng nếu chưa có
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS vehicle_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            track_id INTEGER,
-            vehicle_type TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS traffic_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            cars_per_sec INTEGER,
-            total_vehicles INTEGER
-        )
-    ''')
-    conn.commit()
-    
-    # Đọc dữ liệu
-    entries_df = pd.read_sql_query("SELECT * FROM vehicle_entries ORDER BY id DESC", conn)
-    metrics_df = pd.read_sql_query("SELECT * FROM traffic_metrics ORDER BY id DESC LIMIT 60", conn)
-    conn.close()
-    return entries_df, metrics_df
 
-entries_df, metrics_df = load_data()
+@app.get("/")
+def dashboard():
+    return render_template("web.html")
 
-# Các chỉ số Metric chính
-col1, col2, col3 = st.columns(3)
 
-total_vehicles = len(entries_df)
-current_rate = metrics_df['cars_per_sec'].iloc[0] if not metrics_df.empty else 0
-peak_rate = metrics_df['cars_per_sec'].max() if not metrics_df.empty else 0
+@app.get("/api/traffic-data")
+def traffic_data():
+    """Return every saved one-second throughput endpoint from the last two hours."""
+    now = datetime.now()
+    since = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    connection = get_connection()
+    rows = connection.execute(
+        """
+        SELECT timestamp, total_vehicles
+        FROM traffic_metrics
+        WHERE timestamp >= ?
+        GROUP BY timestamp
+        ORDER BY timestamp
+        """,
+        (since,),
+    ).fetchall()
+    connection.close()
 
-with col1:
-    st.metric(label="Tổng số xe đã vào cổng", value=total_vehicles)
-with col2:
-    st.metric(label="Lưu lượng hiện tại (xe/giây)", value=f"{current_rate} xe/s")
-with col3:
-    st.metric(label="Lưu lượng đỉnh điểm", value=f"{peak_rate} xe/s")
-
-st.divider()
-
-# Biểu đồ và Bảng thống kê
-col_left, col_right = st.columns([2, 1])
-
-with col_left:
-    st.subheader("📈 Lưu lượng xe theo thời gian (60 giây gần nhất)")
-    if not metrics_df.empty:
-        chart_data = metrics_df[['timestamp', 'cars_per_sec']].sort_values(by='timestamp')
-        st.line_chart(chart_data.set_index('timestamp'))
+    if rows:
+        labels = [timestamp[11:] for timestamp, _ in rows]
+        values = [cars or 0 for _, cars in rows]
     else:
-        st.info("Chưa có dữ liệu lưu lượng...")
+        labels = []
+        values = []
 
-with col_right:
-    st.subheader("📊 Phân loại xe vào")
-    if not entries_df.empty:
-        type_counts = entries_df['vehicle_type'].value_counts()
-        st.bar_chart(type_counts)
-    else:
-        st.info("Chưa có xe nào đi qua...")
+    return jsonify({"labels": labels, "values": values})
 
-st.divider()
 
-st.subheader("📋 Lịch sử lượt xe vào gần đây")
-st.dataframe(entries_df[['id', 'track_id', 'vehicle_type', 'timestamp']].head(10), use_container_width=True)
+def run_vision_worker():
+    """Process the configured video twice and write one metric row per second."""
+    init_db()
+    model = YOLO(str(MODEL_PATH))
+    total_entries = 0
+
+    for _ in range(1):
+        capture = cv2.VideoCapture(str(VIDEO_PATH))
+        if not capture.isOpened():
+            print(f"Không thể mở file video: {VIDEO_PATH}")
+            return
+
+        track_history = {}
+        counted_ids = set()
+        last_metric_time = time.time()
+
+        while capture.isOpened():
+            ok, frame = capture.read()
+            if not ok:
+                break
+
+            results = model.track(
+                frame,
+                persist=True,
+                classes=list(VEHICLE_CLASSES),
+                verbose=False,
+            )
+
+            if results[0].boxes is not None and results[0].boxes.id is not None:
+                boxes = results[0].boxes.xyxy.cpu().numpy()
+                track_ids = results[0].boxes.id.int().cpu().tolist()
+                class_ids = results[0].boxes.cls.int().cpu().tolist()
+                for box, track_id, class_id in zip(boxes, track_ids, class_ids):
+                    center_y = int((box[1] + box[3]) / 2)
+                    previous_y = track_history.get(track_id)
+                    crossed_line = (
+                        previous_y is not None
+                        and previous_y < COUNTING_LINE_Y <= center_y
+                    )
+                    near_line = abs(center_y - COUNTING_LINE_Y) < COUNTING_LINE_MARGIN
+                    if (crossed_line or near_line) and track_id not in counted_ids:
+                        counted_ids.add(track_id)
+                        total_entries += 1
+                        log_vehicle(
+                            track_id,
+                            VEHICLE_CLASSES.get(class_id, "Vehicle"),
+                        )
+                        print(f"{time.time()}: car detected")
+                    track_history[track_id] = center_y
+
+            now = time.time()
+            if now - last_metric_time >= 1:
+                log_metric(total_entries)
+                last_metric_time = now
+
+            if SHOW_VIDEO:
+                cv2.imshow("Digital Twin - Traffic Monitor", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    capture.release()
+                    cv2.destroyAllWindows()
+                    return
+
+        capture.release()
+
+# if __name__ == "__main__":
+#     init_db()
+#     reset_metrics()
+#     threading.Thread(target=run_vision_worker, daemon=True, name="yolo-worker").start()
+#     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)

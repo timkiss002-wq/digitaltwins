@@ -1,11 +1,17 @@
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
-DB_NAME = "traffic_monitor.db"
+DB_NAME = Path(__file__).resolve().parent / "traffic_monitor.db"
+
+
+def get_connection():
+    """Create a short-lived SQLite connection for the current thread."""
+    return sqlite3.connect(DB_NAME, timeout=30)
 
 def init_db():
     """Khởi tạo các bảng dữ liệu nếu chưa tồn tại"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     cursor = conn.cursor()
     
     # Bảng 1: Nhật ký chi tiết từng xe đi qua vạch
@@ -23,7 +29,6 @@ def init_db():
         CREATE TABLE IF NOT EXISTS traffic_metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            cars_per_sec INTEGER,
             total_vehicles INTEGER
         )
     ''')
@@ -31,9 +36,17 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+def reset_metrics():
+    """Remove metrics from previous server runs so the chart starts empty."""
+    conn = get_connection()
+    conn.execute("DELETE FROM traffic_metrics")
+    conn.commit()
+    conn.close()
+
 def log_vehicle(track_id, vehicle_type):
     """Ghi nhận 1 xe vừa đi qua vạch"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute(
@@ -43,14 +56,14 @@ def log_vehicle(track_id, vehicle_type):
     conn.commit()
     conn.close()
 
-def log_metric(cars_per_sec, total_vehicles):
+def log_metric(total_vehicles):
     """Ghi nhận chỉ số lưu lượng theo giây"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute(
-        "INSERT INTO traffic_metrics (timestamp, cars_per_sec, total_vehicles) VALUES (?, ?, ?)",
-        (now, cars_per_sec, total_vehicles)
+        "INSERT INTO traffic_metrics (timestamp, total_vehicles) VALUES (?, ?)",
+        (now, total_vehicles)
     )
     conn.commit()
     conn.close()

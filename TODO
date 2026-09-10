@@ -1,0 +1,2 @@
+[] Create a virtualenv, and a requirement.txt.
+[] Create logs for YOLO: print out how many objects that it has detected
