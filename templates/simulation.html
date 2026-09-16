@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Quản Lý Bãi Xe - NEU</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="brand">
+                <div class="brand-icon"><i data-lucide="car-front"></i></div>
+                <div class="brand-title">
+                    <h1>Mô Phỏng Quản Lý Bãi Xe</h1>
+                    <p>HỆ THỐNG ĐIỀU PHỐI 4 NHÀ XE · 16 LÀN · THỜI GIAN THỰC</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <div class="clock" id="sim-clock">⏱ 00:00:00</div>
+                <span class="run-status" id="run-status">Chưa chạy</span>
+                <a class="btn-refresh" href="/"><i data-lucide="camera" style="width:14px;"></i> Giám sát camera</a>
+            </div>
+        </header>
+
+        <!-- THANH ĐIỀU KHIỂN LƯỢT MÔ PHỎNG -->
+        <div class="card run-bar">
+            <div class="run-bar-group">
+                <label for="scenario-select">KỊCH BẢN</label>
+                <select id="scenario-select"></select>
+                <span class="run-params" id="run-params"></span>
+            </div>
+            <div class="run-bar-actions">
+                <button class="btn btn-primary" id="btn-start"><i data-lucide="play" style="width:14px;"></i> Bắt đầu</button>
+                <button class="btn" id="btn-pause" disabled><i data-lucide="pause" style="width:14px;"></i> Tạm dừng</button>
+                <button class="btn" id="btn-resume" disabled><i data-lucide="play-circle" style="width:14px;"></i> Tiếp tục</button>
+                <button class="btn btn-danger" id="btn-stop" disabled><i data-lucide="square" style="width:14px;"></i> Dừng &amp; tổng kết</button>
+            </div>
+        </div>
+
+        <!-- CẢNH BÁO -->
+        <div id="warn-banner" class="warn-banner" hidden></div>
+
+        <!-- CHỈ SỐ TOÀN HỆ THỐNG -->
+        <div class="metrics-row">
+            <div class="metric-card">
+                <div class="metric-title">Xe Đã Vào</div>
+                <div class="metric-value" id="kpi-admitted">0</div>
+                <div class="metric-sub">Tổng xe được nhận vào bãi</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Xe Đã Ra</div>
+                <div class="metric-value" id="kpi-departed">0</div>
+                <div class="metric-sub">Tổng xe rời bãi</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Xe Đang Chờ</div>
+                <div class="metric-value" id="kpi-waiting">0</div>
+                <div class="metric-sub">Trên toàn bộ 16 làn</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Chờ Trung Bình</div>
+                <div class="metric-value" id="kpi-avg-wait">—</div>
+                <div class="metric-sub">Thời gian chờ mua/vé</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Điều Hướng Sang Bãi Khác</div>
+                <div class="metric-value" id="kpi-redirected">0</div>
+                <div class="metric-sub">Khi bãi đích hết chỗ</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Bị Từ Chối</div>
+                <div class="metric-value" id="kpi-rejected">0</div>
+                <div class="metric-sub">Không còn bãi nào còn chỗ</div>
+            </div>
+        </div>
+
+        <!-- SỨC CHỨA + ĐIỀU KHIỂN LÀN CỦA 4 NHÀ XE -->
+        <div class="lots-grid" id="lots-grid"></div>
+
+        <div class="dashboard-grid">
+            <!-- NHẬT KÝ SỰ KIỆN -->
+            <div class="card">
+                <div class="card-header-title">
+                    <i data-lucide="file-text" style="width:16px;"></i> Nhật Ký Điều Phối
+                </div>
+                <div class="event-log" id="event-log">
+                    <p class="empty-note">Chưa có sự kiện. Hãy bắt đầu một lượt mô phỏng.</p>
+                </div>
+            </div>
+
+            <!-- BIỂU ĐỒ LƯU LƯỢNG -->
+            <div class="card">
+                <div class="card-header-title" style="justify-content: space-between;">
+                    <span><i data-lucide="activity" style="width:16px;"></i> HÀNG CHỜ THEO LÀN
+                        <span id="chart-lane-label"></span></span>
+                    <select id="chart-lane-select"></select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="sim-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HỘP THOẠI TỔNG KẾT CUỐI LƯỢT -->
+    <dialog id="summary-modal">
+        <div class="dialog-title">Tổng Kết Lượt Mô Phỏng</div>
+        <div class="dialog-body" id="summary-body"></div>
+        <div class="dialog-actions">
+            <button class="btn btn-primary" data-close-dialog="summary-modal">Đóng</button>
+        </div>
+    </dialog>
+
+    <!-- HỘP THOẠI XÁC NHẬN CẤU HÌNH LỆCH -->
+    <dialog id="lopsided-modal">
+        <div class="dialog-title">Xác Nhận Cấu Hình Lệch</div>
+        <div class="dialog-body" id="lopsided-body"></div>
+        <div class="dialog-actions">
+            <button class="btn" data-close-dialog="lopsided-modal">Hủy</button>
+            <button class="btn btn-primary" id="btn-confirm-lopsided">Vẫn tiếp tục</button>
+        </div>
+    </dialog>
+
+    <div id="toast-host" class="toast-host"></div>
+
+    <script src="{{ url_for('static', filename='simulation.js') }}"></script>
+</body>
+
+</html>
