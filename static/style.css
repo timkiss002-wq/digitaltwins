@@ -486,6 +486,9 @@
             font-size: 13px;
         }
 
+        /* `display: flex` ở trên sẽ ghi đè thuộc tính `hidden` -> phải khai báo tường minh */
+        .warn-banner[hidden] { display: none; }
+
         .warn-banner .warn-title { font-weight: 700; }
 
         .lots-grid {

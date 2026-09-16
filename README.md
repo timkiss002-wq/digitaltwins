@@ -89,6 +89,8 @@ Khi khởi động, ứng dụng sẽ khởi tạo cơ sở dữ liệu, xóa c�
 | `TRAFFIC_VIDEO` | `Vehicle Dataset Sample 2 [JqhdBCCUVyQ].mp4` | Đường dẫn đến video giao thông đầu vào. |
 | `YOLO_MODEL` | `yolov8n.pt` | Đường dẫn đến trọng số mô hình YOLO. |
 | `SHOW_VIDEO` | `0` | Đặt thành `1` để hiển thị cửa sổ xem trước OpenCV. |
+| `ENABLE_CV` | `1` | Đặt thành `0` để không chạy worker camera (dùng khi chỉ cần phần mô phỏng bãi xe). |
+| `CV_PASSES` | `1` | Số lượt xử lý video của worker camera. |
 
 Ví dụ:
 
@@ -123,6 +125,8 @@ Trả về các chỉ số giao thông được ghi nhận trong hai giờ gần
 
 Giao diện gọi endpoint này mỗi 2,5 giây và hiển thị 60 điểm dữ liệu mới nhất.
 
+`values` là **lưu lượng mỗi giây** (chênh lệch giữa hai lần ghi liên tiếp của số xe tích luỹ trong `traffic_metrics`), khớp với đơn vị "XE / GIÂY" trên biểu đồ. Cột `total_vehicles` trong bảng vẫn lưu số xe tích luỹ.
+
 ## Cơ sở dữ liệu
 
 Dữ liệu SQLite được lưu trong `traffic_monitor.db` tại thư mục dự án. Ứng dụng tự động tạo hai bảng:
@@ -154,3 +158,14 @@ Một phương tiện được tính khi tâm của nó vượt qua đường ng
 ## Ghi chú phát triển
 
 Dự án này phục vụ mục đích trình demo. Khi triển khai thực tế, cần bổ sung xác thực, ghi log có cấu trúc, kiểm tra dữ liệu đầu vào, quản lý vòng đời mô hình và video, máy chủ WSGI dành cho môi trường production.
+
+## Mô phỏng quản lý bãi xe
+
+Ứng dụng còn có module mô phỏng 4 nhà xe × 4 làn (thêm/đổi hướng làn, điều hướng khi hết chỗ,
+cảnh báo tắc nghẽn, tổng kết cuối lượt) tại `http://127.0.0.1:5000/sim`. Tài liệu chi tiết:
+[`docs/simulation.md`](docs/simulation.md). Phần mô phỏng chạy được **không cần** `ultralytics`/`opencv`:
+
+```bash
+ENABLE_CV=0 python main.py        # chỉ chạy phần mô phỏng
+.venv/bin/python -m pytest tests -q
+```

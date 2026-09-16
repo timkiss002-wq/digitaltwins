@@ -164,8 +164,24 @@
         el('kpi-avg-wait').textContent = samples ? (waitSum / samples).toFixed(1) + 's' : '—';
     }
 
+    function renderIdle() {
+        const host = el('lots-grid');
+        if (host.dataset.mode === 'idle') return;
+        host.dataset.mode = 'idle';
+        host.innerHTML =
+            '<div class="card">' +
+            '  <div class="card-header-title">CHƯA CÓ LƯỢT MÔ PHỎNG</div>' +
+            '  <p class="empty-note">Chọn một kịch bản ở trên rồi bấm <b>Bắt đầu</b> để xem 4 nhà xe, ' +
+            '16 làn, hàng chờ, cảnh báo và các nút điều khiển làn.</p>' +
+            '</div>';
+    }
+
     function renderLots(lots) {
         const host = el('lots-grid');
+        if (host.dataset.mode !== 'live') {   // xoá thông báo "chưa có lượt" khi lượt chạy bắt đầu
+            host.dataset.mode = 'live';
+            host.innerHTML = '';
+        }
         lots.forEach(function (lot) {
             let card = document.getElementById('lot-card-' + lot.lot_id);
             if (!card) {
@@ -196,7 +212,8 @@
                 'Điều hướng đến: ' + lot.redirected_in + ' · Đi từ đây: ' + lot.redirected_out + '<br>' +
                 'Bị từ chối: ' + lot.rejected;
             const badge = el('lot-badge-' + lot.lot_id);
-            badge.textContent = lot.fill_ratio >= 0.9 ? 'SẮP ĐẦY' : 'BÌNH THƯỜNG';
+            badge.textContent = lot.fill_ratio >= 1 ? 'ĐÃ ĐẦY'
+                : (lot.fill_ratio >= 0.9 ? 'SẮP ĐẦY' : 'BÌNH THƯỜNG');
             badge.dataset.status = lot.fill_ratio >= 0.9 ? 'paused' : 'running';
 
             renderGates(lot);
@@ -347,6 +364,8 @@
             if (state.status === 'idle') {
                 currentRun = null;
                 el('sim-clock').textContent = '⏱ 00:00:00';
+                renderWarnings([]);
+                renderIdle();
                 return;
             }
             currentRun = state;

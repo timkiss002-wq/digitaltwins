@@ -29,10 +29,21 @@ COUNTING_LINE_MARGIN = 15
 
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
 
+# Mô phỏng bãi xe: blueprint REST /api/sim/* (module simulation/, không phụ thuộc thư viện thị giác).
+from simulation.routes import sim_bp  # noqa: E402 - phải đăng ký sau khi tạo app
+
+app.register_blueprint(sim_bp)
+
 
 @app.get("/")
 def dashboard():
     return render_template("web.html")
+
+
+@app.get("/sim")
+def simulation_page():
+    """Trang mô phỏng quản lý bãi xe (tiếng Việt)."""
+    return render_template("simulation.html")
 
 
 @app.get("/api/traffic-data")

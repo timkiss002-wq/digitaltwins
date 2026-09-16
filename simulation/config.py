@@ -4,8 +4,24 @@ Nguồn: Description.md (4 nhà xe, dung tích, quy tắc) và parking_lot_simul
 (τ = 4 giây/xe = 15 xe/phút/chốt, λ ≈ 0,5 xe/giây/làn trong giờ cao điểm).
 """
 
+import os
+
 # ID chuẩn của 4 nhà xe và dung tích (Description.md)
-LOT_CAPACITIES = {"A": 1100, "BC": 1750, "D": 1750, "KTX": 2000}
+BASE_LOT_CAPACITIES = {"A": 1100, "BC": 1750, "D": 1750, "KTX": 2000}
+
+
+def scaled_capacities(base: dict, scale: float) -> dict:
+    """Thu nhỏ dung tích theo hệ số (chỉ dùng cho demo/kiểm thử). scale <= 0 -> giữ nguyên."""
+    if scale <= 0 or scale == 1:
+        return dict(base)
+    return {lot_id: max(1, int(size * scale)) for lot_id, size in base.items()}
+
+
+# SIM_CAPACITY_SCALE=0.02 là lối tắt CHỈ DÙNG CHO DEMO: nhà xe đầy sau ~1-2 phút thay vì
+# ~18-60 phút (vì năng lực xử lý là 0,25 xe/giây/làn nên 1100 chỗ cần ít nhất ~18 phút).
+# Mặc định 1.0 -> đúng số liệu trong Description.md.
+CAPACITY_SCALE = float(os.getenv("SIM_CAPACITY_SCALE", "1") or 1)
+LOT_CAPACITIES = scaled_capacities(BASE_LOT_CAPACITIES, CAPACITY_SCALE)
 
 LOT_LABELS = {
     "A": "Nhà xe A (khu trung tâm)",

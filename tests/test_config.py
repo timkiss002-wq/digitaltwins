@@ -1,5 +1,7 @@
 """Test hằng số miền: dung tích, τ, làn, alias tên nhà xe."""
 
+import pytest
+
 from simulation import config as C
 
 
@@ -31,3 +33,21 @@ def test_thresholds_match_description():
 
 def test_lot_labels_cover_all_lots():
     assert set(C.LOT_LABELS) == set(C.LOT_CAPACITIES)
+
+
+def test_scaled_capacities_shrinks_but_keeps_ids_and_stays_positive():
+    scaled = C.scaled_capacities(C.BASE_LOT_CAPACITIES, 0.02)
+    assert scaled == {"A": 22, "BC": 35, "D": 35, "KTX": 40}
+    assert all(value >= 1 for value in C.scaled_capacities(C.BASE_LOT_CAPACITIES, 0.00001).values())
+
+
+def test_scaled_capacities_is_identity_when_disabled():
+    assert C.scaled_capacities(C.BASE_LOT_CAPACITIES, 1) == C.BASE_LOT_CAPACITIES
+    assert C.scaled_capacities(C.BASE_LOT_CAPACITIES, 0) == C.BASE_LOT_CAPACITIES
+
+
+def test_default_scale_keeps_the_numbers_from_description():
+    """Mặc định phải đúng số liệu Description.md; chỉ bật SIM_CAPACITY_SCALE khi demo."""
+    if C.CAPACITY_SCALE != 1:
+        pytest.skip("SIM_CAPACITY_SCALE đang được bật (chế độ demo)")
+    assert C.LOT_CAPACITIES == C.BASE_LOT_CAPACITIES == {"A": 1100, "BC": 1750, "D": 1750, "KTX": 2000}
