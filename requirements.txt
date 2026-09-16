@@ -1,0 +1,6 @@
+Flask>=3.0
+# Module thị giác máy tính (tùy chọn - cài nếu chạy bảng điều khiển camera)
+ultralytics
+opencv-python
+# Chỉ dùng cho kiểm thử
+pytest

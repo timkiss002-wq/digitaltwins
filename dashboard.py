@@ -4,9 +4,17 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import cv2
+try:  # Thư viện thị giác là tùy chọn: mô phỏng bãi xe vẫn chạy được khi không cài.
+    import cv2
+    from ultralytics import YOLO
+
+    CV_AVAILABLE = True
+except ImportError:  # pragma: no cover - môi trường không cài ultralytics/opencv
+    cv2 = None
+    YOLO = None
+    CV_AVAILABLE = False
+
 from flask import Flask, jsonify, render_template
-from ultralytics import YOLO
 
 from database import get_connection, init_db, log_metric, log_vehicle, reset_metrics
 
@@ -14,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent
 VIDEO_PATH = Path(os.getenv("TRAFFIC_VIDEO", BASE_DIR / "Vehicle Dataset Sample 2 [JqhdBCCUVyQ].mp4"))
 MODEL_PATH = Path(os.getenv("YOLO_MODEL", BASE_DIR / "yolov8n.pt"))
 SHOW_VIDEO = os.getenv("SHOW_VIDEO", "0") == "1"
+CV_PASSES = max(1, int(os.getenv("CV_PASSES", "1")))
 VEHICLE_CLASSES = {2: "Car", 3: "Motorcycle", 5: "Bus", 7: "Truck"}
 COUNTING_LINE_Y = 400
 COUNTING_LINE_MARGIN = 15
@@ -46,7 +55,13 @@ def traffic_data():
 
     if rows:
         labels = [timestamp[11:] for timestamp, _ in rows]
-        values = [cars or 0 for _, cars in rows]
+        # total_vehicles lưu số xe TÍCH LUỸ, biểu đồ cần lưu lượng MỖI GIÂY (xe/giây).
+        values = []
+        previous = None
+        for _, total in rows:
+            total = total or 0
+            values.append(0 if previous is None else max(0, total - previous))
+            previous = total
     else:
         labels = []
         values = []
@@ -55,17 +70,22 @@ def traffic_data():
 
 
 def run_vision_worker():
-    """Process the configured video twice and write one metric row per second."""
+    """Xử lý video theo cấu hình CV_PASSES lượt, ghi 1 chỉ số mỗi giây."""
+    if not CV_AVAILABLE:  # pragma: no cover - môi trường không cài thư viện thị giác
+        print("Bỏ qua worker camera: chưa cài ultralytics/opencv.")
+        return
+
     init_db()
     model = YOLO(str(MODEL_PATH))
     total_entries = 0
 
-    for _ in range(1):
+    for _ in range(CV_PASSES):
         capture = cv2.VideoCapture(str(VIDEO_PATH))
         if not capture.isOpened():
             print(f"Không thể mở file video: {VIDEO_PATH}")
             return
 
+        # Trạng thái theo dõi được đặt lại cho mỗi lượt để lượt sau vẫn đếm được xe.
         track_history = {}
         counted_ids = set()
         last_metric_time = time.time()

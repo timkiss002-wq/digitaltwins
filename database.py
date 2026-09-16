@@ -7,7 +7,11 @@ DB_NAME = Path(__file__).resolve().parent / "traffic_monitor.db"
 
 def get_connection():
     """Create a short-lived SQLite connection for the current thread."""
-    return sqlite3.connect(DB_NAME, timeout=30)
+    conn = sqlite3.connect(DB_NAME, timeout=30)
+    # WAL + busy_timeout: worker camera và mô phỏng cùng ghi, tránh lỗi "database is locked".
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
 
 def init_db():
     """Khởi tạo các bảng dữ liệu nếu chưa tồn tại"""
